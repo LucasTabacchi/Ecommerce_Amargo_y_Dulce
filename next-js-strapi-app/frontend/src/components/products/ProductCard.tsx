@@ -1,39 +1,53 @@
 import Link from "next/link";
+import Image from "next/image";
 
 /**
  * Tipo simple para un producto.
- * Más adelante lo podés reemplazar por tu type real (ej: src/types/product.ts)
- * o lo que venga desde Strapi.
+ * Compatible con Strapi v5
  */
 export type ProductCardItem = {
   slug: string;
   title: string;
   description: string;
   price: number;
-  imageUrl?: string; // opcional (por ahora podemos no tener imagen real)
+  imageUrl?: string;
+  off?: number; // % de descuento (ej: 10)
 };
 
 /**
  * Card reutilizable de producto:
- * - Muestra imagen (o placeholder si no hay)
- * - Título, descripción y precio
+ * - Imagen real de Strapi (si existe)
+ * - Badge de descuento (si off existe)
+ * - Precio tachado + precio final (si off existe)
  * - Click lleva a /productos/[slug]
  */
 export function ProductCard({ item }: { item: ProductCardItem }) {
+  const hasOff = typeof item.off === "number" && item.off > 0;
+  const finalPrice = hasOff
+    ? Math.round(item.price * (1 - item.off! / 100))
+    : item.price;
+
   return (
     <Link
       href={`/productos/${item.slug}`}
       className="group block rounded-lg border border-neutral-200 bg-white p-4 transition hover:shadow-sm"
     >
       {/* Imagen / Placeholder */}
-      <div className="flex aspect-[4/3] items-center justify-center rounded-md bg-neutral-100">
+      <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md bg-neutral-100">
+        {/* Badge descuento */}
+        {hasOff && (
+          <span className="absolute left-2 top-2 z-10 rounded-full bg-red-600 px-2 py-1 text-xs font-bold text-white">
+            {item.off}% OFF
+          </span>
+        )}
+
         {item.imageUrl ? (
-          // Si ya tenés imagen, la mostramos. (Después podemos pasar a next/image)
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={item.imageUrl}
             alt={item.title}
-            className="h-full w-full rounded-md object-cover"
+            fill
+            sizes="(max-width: 768px) 100vw, 33vw"
+            className="object-cover transition group-hover:scale-105"
           />
         ) : (
           <div className="text-xs text-neutral-500">Imagen próximamente</div>
@@ -50,9 +64,21 @@ export function ProductCard({ item }: { item: ProductCardItem }) {
           {item.description}
         </p>
 
-        <div className="mt-3 text-sm font-semibold text-neutral-900">
-          ${item.price.toLocaleString("es-AR")}
-        </div>
+        {/* Precio */}
+        {hasOff ? (
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-xs font-semibold text-neutral-400 line-through">
+              ${item.price.toLocaleString("es-AR")}
+            </span>
+            <span className="text-sm font-semibold text-neutral-900">
+              ${finalPrice.toLocaleString("es-AR")}
+            </span>
+          </div>
+        ) : (
+          <div className="mt-3 text-sm font-semibold text-neutral-900">
+            ${item.price.toLocaleString("es-AR")}
+          </div>
+        )}
       </div>
     </Link>
   );

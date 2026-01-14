@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Container } from "./Container";
 import { Search, ShoppingCart, User, Menu, X } from "lucide-react";
 import { LoginModal } from "@/components/auth/LoginModal";
+import { CartBadge } from "@/components/cart/CartBadge";
 
 function NavLink({
   href,
@@ -96,7 +97,7 @@ export function Header() {
           <div className="hidden items-center gap-4 md:flex">
             <div className="h-6 w-px bg-neutral-200" />
 
-            {/* Dropdown login: el contenedor debe ser relative */}
+            {/* Dropdown login */}
             <div className="relative">
               <button
                 onClick={() => setLoginOpen((v) => !v)}
@@ -108,16 +109,20 @@ export function Header() {
                 Iniciar sesión
               </button>
 
-              {/* Desplegable debajo del botón */}
               <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
             </div>
 
             <div className="h-6 w-px bg-neutral-200" />
+
+            {/* Carrito + badge */}
             <Link
               href="/carrito"
-              className="flex items-center gap-2 text-[15px] font-medium text-neutral-800 hover:text-neutral-950"
+              className="relative flex items-center gap-2 text-[15px] font-medium text-neutral-800 hover:text-neutral-950"
             >
-              <ShoppingCart className="h-5 w-5" />
+              <span className="relative inline-flex">
+                <ShoppingCart className="h-5 w-5" />
+                <CartBadge />
+              </span>
               Carrito
             </Link>
           </div>
@@ -126,10 +131,11 @@ export function Header() {
           <div className="flex items-center justify-end gap-2 md:hidden">
             <Link
               href="/carrito"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-neutral-200 bg-white"
+              className="relative inline-flex h-11 w-11 items-center justify-center rounded-md border border-neutral-200 bg-white"
               aria-label="Carrito"
             >
               <ShoppingCart className="h-5 w-5" />
+              <CartBadge />
             </Link>
 
             <button
@@ -139,11 +145,7 @@ export function Header() {
               aria-expanded={mobileOpen}
               type="button"
             >
-              {mobileOpen ? (
-                <X className="h-5 w-5" />
-              ) : (
-                <Menu className="h-5 w-5" />
-              )}
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
           </div>
         </div>
@@ -170,10 +172,7 @@ export function Header() {
                 <NavLink href="/promociones" onClick={() => setMobileOpen(false)}>
                   Promociones
                 </NavLink>
-                <NavLink
-                  href="/sobre-nosotros"
-                  onClick={() => setMobileOpen(false)}
-                >
+                <NavLink href="/sobre-nosotros" onClick={() => setMobileOpen(false)}>
                   Sobre nosotros
                 </NavLink>
               </nav>
@@ -195,9 +194,12 @@ export function Header() {
                 <Link
                   href="/carrito"
                   onClick={() => setMobileOpen(false)}
-                  className="flex h-11 flex-1 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white text-[15px] font-medium"
+                  className="relative flex h-11 flex-1 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white text-[15px] font-medium"
                 >
-                  <ShoppingCart className="h-5 w-5" />
+                  <span className="relative inline-flex">
+                    <ShoppingCart className="h-5 w-5" />
+                    <CartBadge />
+                  </span>
                   Carrito
                 </Link>
               </div>

@@ -2,11 +2,24 @@ import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { InfoStrip } from "@/components/home/InfoStrip";
 import { HomeBestSellers } from "@/components/home/HomeBestSellers";
+import { strapiGet } from "@/lib/strapi";
+import { toCardItem } from "@/lib/strapi-mappers";
 
-export default function HomePage() {
+type HomePageData = {
+  bestSellers?: any[];
+};
+
+export default async function HomePage() {
+  // Traemos el single type home-page con la relación bestSellers poblada
+  const res = await strapiGet<{ data: HomePageData }>(
+    "/api/home-page?populate[bestSellers][populate]=*"
+  );
+
+  const bestSellers = (res?.data?.bestSellers ?? []).map(toCardItem);
+
   return (
     <>
-      {/* HERO / PRESENTACIÓN (placeholder hasta tener carrusel real) */}
+      {/* HERO / PRESENTACIÓN */}
       <Container>
         <div className="py-10">
           <h1 className="text-3xl font-bold">Amargo y Dulce</h1>
@@ -21,7 +34,10 @@ export default function HomePage() {
             >
               Ver productos
             </Link>
-            <Link className="rounded-md border px-4 py-2" href="/login">
+            <Link
+              className="rounded-md border px-4 py-2"
+              href="/login"
+            >
               Iniciar sesión
             </Link>
           </div>
@@ -34,12 +50,12 @@ export default function HomePage() {
           <InfoStrip />
         </div>
       </Container>
-    
 
       {/* PRODUCTOS MÁS COMPRADOS */}
       <Container>
-        <HomeBestSellers />
+        <HomeBestSellers products={bestSellers} />
       </Container>
     </>
   );
 }
+

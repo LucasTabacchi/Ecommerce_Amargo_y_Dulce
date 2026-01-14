@@ -1,33 +1,23 @@
 import Link from "next/link";
 import { ProductCard, type ProductCardItem } from "@/components/products/ProductCard";
 
+type HomeBestSellersProps = {
+  products: (ProductCardItem & { off?: number })[];
+};
+
 /**
  * Sección del home: "PRODUCTOS MÁS COMPRADOS"
- * - Orquesta el título + grid + botón "Más productos"
- * - Usa ProductCard para mantener consistencia visual
+ * - Recibe productos desde la Home (Strapi)
+ * - Renderiza ProductCard sin mocks
  */
-export function HomeBestSellers() {
-  // Mock data (hasta conectar Strapi)
-  const items: ProductCardItem[] = [
-    {
-      slug: "bombon-noche-intensa",
-      title: "Bombón Noche Intensa",
-      description:
-        "Bombón de chocolate con cacao, relleno de crema de avellanas y licor de café.",
-      price: 15000,
-    },
-    {
-      slug: "bombon-coleccion-clasica",
-      title: "Bombón Colección Clásica",
-      description:
-        "Bombón de chocolate 70% cacao, relleno de frambuesa líquida.",
-      price: 15000,
-    },
-  ];
+export function HomeBestSellers({ products }: HomeBestSellersProps) {
+  if (!products || products.length === 0) {
+    return null; // o un placeholder si preferís
+  }
 
   return (
     <section aria-label="Productos más comprados" className="py-10">
-      {/* Título centrado con líneas suaves (similar al mockup) */}
+      {/* Título centrado con líneas suaves */}
       <div className="flex items-center gap-4">
         <div className="h-px flex-1 bg-neutral-200" />
         <h2 className="text-sm font-extrabold tracking-widest text-neutral-800">
@@ -38,7 +28,7 @@ export function HomeBestSellers() {
 
       {/* Grid de productos */}
       <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-        {items.map((item) => (
+        {products.map((item) => (
           <div key={item.slug} className="flex justify-center">
             <div className="w-full max-w-sm">
               <ProductCard item={item} />

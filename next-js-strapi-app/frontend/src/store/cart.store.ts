@@ -1,37 +1,91 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import type { ProductCardItem } from "@/components/products/ProductCard";
 
-export type CartItem = {
-  id: string;
-  name: string;
-  price: number;
+export type CartItem = ProductCardItem & {
   qty: number;
-  image?: string;
 };
 
 type CartState = {
   items: CartItem[];
-  add: (item: Omit<CartItem, "qty">, qty?: number) => void;
-  remove: (id: string) => void;
-  setQty: (id: string, qty: number) => void;
+
+  addItem: (product: ProductCardItem, qty?: number) => void;
+  removeItem: (slug: string) => void;
+  inc: (slug: string) => void;
+  dec: (slug: string) => void;
   clear: () => void;
-  subtotal: () => number;
+
+  totalItems: () => number;
+  totalPrice: () => number;
 };
 
-export const useCart = create<CartState>((set, get) => ({
-  items: [],
-  add: (item, qty = 1) =>
-    set((s) => {
-      const existing = s.items.find((x) => x.id === item.id);
-      if (existing) {
-        return {
-          items: s.items.map((x) => (x.id === item.id ? { ...x, qty: x.qty + qty } : x)),
-        };
-      }
-      return { items: [...s.items, { ...item, qty }] };
+export const useCartStore = create<CartState>()(
+  persist(
+    (set, get) => ({
+      items: [],
+
+      addItem: (product, qty = 1) => {
+        set((state) => {
+          const existing = state.items.find(
+            (i) => i.slug === product.slug
+          );
+
+          if (existing) {
+            return {
+              items: state.items.map((i) =>
+                i.slug === product.slug
+                  ? { ...i, qty: i.qty + qty }
+                  : i
+              ),
+            };
+          }
+
+          return {
+            items: [...state.items, { ...product, qty }],
+          };
+        });
+      },
+
+      removeItem: (slug) =>
+        set((state) => ({
+          items: state.items.filter((i) => i.slug !== slug),
+        })),
+
+      inc: (slug) =>
+        set((state) => ({
+          items: state.items.map((i) =>
+            i.slug === slug ? { ...i, qty: i.qty + 1 } : i
+          ),
+        })),
+
+      dec: (slug) =>
+        set((state) => ({
+          items: state.items
+            .map((i) =>
+              i.slug === slug ? { ...i, qty: i.qty - 1 } : i
+            )
+            .filter((i) => i.qty > 0),
+        })),
+
+      clear: () => set({ items: [] }),
+
+      totalItems: () =>
+        get().items.reduce((acc, i) => acc + i.qty, 0),
+
+      totalPrice: () =>
+        get().items.reduce((acc, i) => {
+          const hasOff =
+            typeof i.off === "number" && i.off > 0;
+          const finalPrice = hasOff
+            ? Math.round(i.price * (1 - i.off! / 100))
+            : i.price;
+
+          return acc + finalPrice * i.qty;
+        }, 0),
     }),
-  remove: (id) => set((s) => ({ items: s.items.filter((x) => x.id !== id) })),
-  setQty: (id, qty) =>
-    set((s) => ({ items: s.items.map((x) => (x.id === id ? { ...x, qty } : x)) })),
-  clear: () => set({ items: [] }),
-  subtotal: () => get().items.reduce((acc, x) => acc + x.price * x.qty, 0),
-}));
+    {
+      name: "amargo-dulce-cart",
+    }
+  )
+);
+
