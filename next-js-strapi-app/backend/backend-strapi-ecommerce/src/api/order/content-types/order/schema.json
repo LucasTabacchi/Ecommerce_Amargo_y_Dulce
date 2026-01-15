@@ -29,9 +29,14 @@
     },
     "orderStatus": {
       "type": "enumeration",
-      "enum": ["pending", "paid"],
+      "required": true,
       "default": "pending",
-      "required": true
+      "enum": [
+        "pending",
+        "paid",
+        "failed",
+        "cancelled"
+      ]
     },
     "orderNumber": {
       "type": "string",
@@ -42,6 +47,18 @@
     },
     "mpStatus": {
       "type": "string"
+    },
+    "mpStatusDetail": {
+      "type": "string"
+    },
+    "mpMerchantOrderId": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "shippingAddress": {
+      "type": "json"
     }
   }
 }

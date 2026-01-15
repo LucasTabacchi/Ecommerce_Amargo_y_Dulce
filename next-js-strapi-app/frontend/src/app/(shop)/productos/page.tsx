@@ -1,98 +1,143 @@
+import Link from "next/link";
+import Image from "next/image";
 import { Container } from "@/components/layout/Container";
-import { ProductCard } from "@/components/products/ProductCard";
-import { SlidersHorizontal, ArrowUpDown } from "lucide-react";
-import { strapiGet } from "@/lib/strapi";
+import { fetcher } from "@/lib/fetcher";
 import { toCardItem } from "@/lib/strapi-mappers";
-import { AddToCartButton } from "@/components/cart/AddToCartButton";
 
-/* 🔥 CLAVE: forzar datos siempre frescos */
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
-type StrapiCollection<T> = {
-  data: T[];
+type StrapiListResponse<T> = {
+  data: Array<{ id: number; attributes: T }>;
   meta?: any;
 };
 
-export default async function ProductosPage({
-  searchParams,
-}: {
-  searchParams: { cat?: string; sort?: string };
-}) {
-  // 1) Filtro por categoría desde querystring
-  const cat = (searchParams.cat || "").toLowerCase();
+type ProductAttributes = any;
 
-  // 2) Orden
-  const sort = searchParams.sort || "";
-  const sortParam =
-    sort === "price_asc"
-      ? "sort[0]=price:asc"
-      : sort === "price_desc"
-      ? "sort[0]=price:desc"
-      : "sort[0]=createdAt:desc";
+function formatARS(n: number) {
+  return n.toLocaleString("es-AR", { style: "currency", currency: "ARS" });
+}
 
-  // 3) Filtro por category
-  const filterQuery = cat
-    ? `&filters[category][$eqi]=${encodeURIComponent(cat)}`
-    : "";
+export default async function ProductosPage() {
+  let products: any[] = [];
+  let errorMsg: string | null = null;
 
-  // 4) Fetch a Strapi (SIN cache por el force-dynamic)
-  const res = await strapiGet<StrapiCollection<any>>(
-    `/api/products?populate=*&pagination[pageSize]=24&${sortParam}${filterQuery}`
-  );
+  try {
+    const res = await fetcher<StrapiListResponse<ProductAttributes>>(
+      "/api/products?populate=*"
+    );
 
-  // 5) Normalizamos para tu UI
-  const products = (res?.data ?? []).map(toCardItem);
+    const raw = Array.isArray(res?.data) ? res.data : [];
+
+    // ✅ Importante: el mapper te devuelve imageUrl listo
+    products = raw.map(toCardItem);
+  } catch (err: any) {
+    errorMsg = err?.message || "No se pudieron cargar los productos.";
+    products = [];
+  }
 
   return (
     <main>
       <Container>
-        <div className="py-8">
-          <h1 className="text-2xl font-extrabold text-neutral-900">Productos</h1>
-          <p className="mt-1 text-sm text-neutral-600">
-            Elegí tus favoritos.{" "}
-            {cat ? `Mostrando categoría: ${cat}` : "Explorá todo el catálogo."}
+        <div className="py-10">
+          <h1 className="text-3xl font-extrabold text-neutral-900">Productos</h1>
+          <p className="mt-2 text-sm text-neutral-600">
+            Explorá nuestros productos.
           </p>
         </div>
 
-        <div className="flex items-center justify-center gap-8 pb-6 text-sm text-neutral-800">
-          <button className="inline-flex items-center gap-2 hover:text-neutral-950">
-            <SlidersHorizontal className="h-4 w-4" />
-            Filtrar
-          </button>
-
-          <button className="inline-flex items-center gap-2 hover:text-neutral-950">
-            <ArrowUpDown className="h-4 w-4" />
-            Ordenar
-          </button>
-        </div>
-
-        <div id="listado" className="scroll-mt-24" />
-
-        <section className="pb-14">
-          {products.length === 0 ? (
-            <div className="rounded-lg bg-[#F7F2E9] p-6 text-sm text-neutral-700">
-              No hay productos para mostrar
-              {cat ? ` en la categoría "${cat}"` : ""}.
+        {errorMsg ? (
+          <div className="rounded-xl border bg-white p-6 text-sm text-neutral-800">
+            <div className="font-semibold">No se pudieron cargar los productos</div>
+            <p className="mt-2 text-neutral-600">{errorMsg}</p>
+            <div className="mt-4">
+              <Link className="underline" href="/">
+                Volver al inicio
+              </Link>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {products.map((p) => (
-                <div key={p.slug} className="rounded-lg bg-[#F7F2E9] p-6">
-                  <ProductCard item={p} />
+          </div>
+        ) : products.length === 0 ? (
+          <div className="rounded-xl border bg-white p-6 text-sm text-neutral-700">
+            No hay productos todavía. Cargalos en Strapi y volvé a intentar.
+          </div>
+        ) : (
+          <div className="pb-14">
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {products.map((p: any) => {
+                const hasOff = typeof p.off === "number" && p.off > 0;
+                const basePrice = typeof p.price === "number" ? p.price : null;
+                const finalPrice =
+                  basePrice != null && hasOff
+                    ? Math.round(basePrice * (1 - p.off / 100))
+                    : basePrice;
 
-                  <div className="mt-4 flex justify-end">
-                    <AddToCartButton item={p} />
-                  </div>
-                </div>
-              ))}
+                return (
+                  <Link
+                    key={p.slug ?? p.id}
+                   href={`/productos/${p.id}`}
+                    className="group overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md"
+                  >
+                    {/* ✅ Imagen desde p.imageUrl (sale del mapper) */}
+                    <div className="relative aspect-[4/3] w-full bg-neutral-100">
+                      {p.imageUrl ? (
+                        <Image
+                          src={p.imageUrl}
+                          alt={p.title ?? "Producto"}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 640px) 92vw, (max-width: 1024px) 45vw, (max-width: 1280px) 30vw, 22vw"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-xs text-neutral-500">
+                          Sin imagen
+                        </div>
+                      )}
+
+                      {hasOff && (
+                        <span className="absolute right-3 top-3 rounded-full bg-red-50 px-2 py-1 text-xs font-bold text-red-700">
+                          -{p.off}%
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="p-5">
+                      <div className="truncate text-base font-extrabold text-neutral-900">
+                        {p.title ?? "Producto"}
+                      </div>
+
+                      {p.category && (
+                        <div className="mt-1 text-xs font-semibold text-neutral-500">
+                          {String(p.category)}
+                        </div>
+                      )}
+
+                      <div className="mt-4">
+                        {finalPrice != null ? (
+                          <div className="flex items-baseline gap-2">
+                            <div className="text-lg font-extrabold text-neutral-900">
+                              {formatARS(finalPrice)}
+                            </div>
+                            {hasOff && basePrice != null && (
+                              <div className="text-sm font-semibold text-neutral-400 line-through">
+                                {formatARS(basePrice)}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-neutral-600">Precio no disponible</div>
+                        )}
+                      </div>
+
+                      <div className="mt-4 text-sm font-semibold text-red-700 opacity-0 transition group-hover:opacity-100">
+                        Ver detalle →
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
-          )}
-        </section>
+          </div>
+        )}
       </Container>
     </main>
   );
 }
-
-
-

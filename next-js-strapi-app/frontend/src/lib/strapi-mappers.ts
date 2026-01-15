@@ -1,34 +1,48 @@
 import type { ProductCardItem } from "@/components/products/ProductCard";
 
 const STRAPI_URL =
-  process.env.NEXT_PUBLIC_STRAPI_URL ?? "http://localhost:1337";
+  (process.env.NEXT_PUBLIC_STRAPI_URL ?? "http://localhost:1337").replace(/\/$/, "");
 
-export function getStrapiImageUrl(product: any): string | undefined {
-  const image = product?.images?.[0];
-
-  if (!image) return undefined;
-
-  // Preferimos thumbnail si existe
-  const url =
-    image.formats?.thumbnail?.url ??
-    image.url;
-
+function withBase(url?: string) {
   if (!url) return undefined;
-
   return url.startsWith("http") ? url : `${STRAPI_URL}${url}`;
 }
 
-export function toCardItem(product: any) {
+/**
+ * Elige la mejor imagen disponible para cards:
+ * medium → small → thumbnail → original
+ */
+export function getStrapiImageUrlFromAttributes(attributes: any): string | undefined {
+  const image = attributes?.images?.[0];
+  if (!image) return undefined;
+
+  const formats = image.formats;
+
+  const url =
+    formats?.medium?.url ||
+    formats?.small?.url ||
+    formats?.thumbnail?.url ||
+    image.url;
+
+  return withBase(url);
+}
+
+/**
+ * Mapper para cards de producto
+ * Recibe el item de Strapi (id + attributes)
+ */
+export function toCardItem(product: any): ProductCardItem {
+  const attr = product?.attributes ?? product ?? {};
+
   return {
-    slug:
-      product.slug ??
-      product.documentId ??
-      String(product.id ?? ""),
-    title: product.title ?? "Producto",
-    description: product.description ?? "",
-    price: Number(product.price ?? 0),
-    imageUrl: getStrapiImageUrl(product),
-    off: typeof product.off === "number" ? product.off : undefined,
+    id: Number(product?.id), // ✅
+    slug: attr.slug ?? String(product?.id ?? ""),
+    title: attr.title ?? "Producto",
+    description: attr.description ?? "",
+    price: Number(attr.price ?? 0),
+    off: typeof attr.off === "number" ? attr.off : undefined,
+    category: attr.category,
+    imageUrl: getStrapiImageUrlFromAttributes(attr),
   };
 }
 

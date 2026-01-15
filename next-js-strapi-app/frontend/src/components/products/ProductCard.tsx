@@ -6,13 +6,16 @@ import Image from "next/image";
  * Compatible con Strapi v5
  */
 export type ProductCardItem = {
+  id: number;              // ✅ nuevo
   slug: string;
   title: string;
-  description: string;
+  description?: string;
   price: number;
   imageUrl?: string;
-  off?: number; // % de descuento (ej: 10)
+  off?: number;
+  category?: string;       // (si lo estás usando)
 };
+
 
 /**
  * Card reutilizable de producto:

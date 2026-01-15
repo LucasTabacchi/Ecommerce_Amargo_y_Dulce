@@ -5,17 +5,37 @@ import { HomeBestSellers } from "@/components/home/HomeBestSellers";
 import { strapiGet } from "@/lib/strapi";
 import { toCardItem } from "@/lib/strapi-mappers";
 
-type HomePageData = {
+type HomePageAttributes = {
   bestSellers?: any[];
 };
 
-export default async function HomePage() {
-  // Traemos el single type home-page con la relación bestSellers poblada
-  const res = await strapiGet<{ data: HomePageData }>(
-    "/api/home-page?populate[bestSellers][populate]=*"
-  );
+type StrapiSingleResponse<T> = {
+  data: {
+    id: number;
+    attributes: T;
+  } | null;
+};
 
-  const bestSellers = (res?.data?.bestSellers ?? []).map(toCardItem);
+export default async function HomePage() {
+  /**
+   * Strapi v4 Single Type devuelve:
+   * { data: { id, attributes: { ... } } }
+   * (no devuelve bestSellers directo en data)
+   */
+  let bestSellers: any[] = [];
+
+  try {
+    const res = await strapiGet<StrapiSingleResponse<HomePageAttributes>>(
+      "/api/home-page?populate[bestSellers][populate]=*"
+    );
+
+    const raw = res?.data?.attributes?.bestSellers ?? [];
+    bestSellers = Array.isArray(raw) ? raw.map(toCardItem) : [];
+  } catch (err) {
+    // Si Strapi responde 401 (permisos) o no existe el single type, no tiramos abajo toda la home.
+    // Mostramos la página igual, solo sin best sellers.
+    bestSellers = [];
+  }
 
   return (
     <>
@@ -28,16 +48,10 @@ export default async function HomePage() {
           </p>
 
           <div className="mt-6 flex gap-3">
-            <Link
-              className="rounded-md bg-red-600 px-4 py-2 text-white"
-              href="/productos"
-            >
+            <Link className="rounded-md bg-red-600 px-4 py-2 text-white" href="/productos">
               Ver productos
             </Link>
-            <Link
-              className="rounded-md border px-4 py-2"
-              href="/login"
-            >
+            <Link className="rounded-md border px-4 py-2" href="/login">
               Iniciar sesión
             </Link>
           </div>
@@ -58,4 +72,3 @@ export default async function HomePage() {
     </>
   );
 }
-

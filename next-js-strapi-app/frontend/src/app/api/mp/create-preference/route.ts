@@ -6,26 +6,46 @@ import { NextResponse } from "next/server";
  *
  * Requisitos:
  * - MP_ACCESS_TOKEN (server-only)
- * - NEXT_PUBLIC_SITE_URL (ideal: https://... ngrok o dominio real)
+ * - NEXT_PUBLIC_SITE_URL (ngrok o dominio real)
+ *
+ * Este handler:
+ * - valida items
+ * - usa external_reference = orderId (Strapi)
+ * - agrega orderId a back_urls para polling post-redirect
+ * - SIEMPRE manda notification_url (clave para webhook)
  */
+
+export const dynamic = "force-dynamic";
+
+type MPItem = {
+  title: string;
+  quantity: number;
+  unit_price: number;
+  currency_id: "ARS";
+};
 
 function normalizeBaseUrl(url: string) {
   const u = String(url ?? "").trim();
-  const noTrailing = u.endsWith("/") ? u.slice(0, -1) : u;
-  return noTrailing;
+  return u.endsWith("/") ? u.slice(0, -1) : u;
 }
 
 function isHttpUrl(url: string) {
   return /^https?:\/\//i.test(url);
 }
 
-function isLikelyLocalhost(url: string) {
-  const u = url.toLowerCase();
-  return u.includes("localhost") || u.includes("127.0.0.1");
+// Mensaje de error más claro desde MP
+function pickMpErrorMessage(payload: any, fallback: string) {
+  if (!payload) return fallback;
+  if (typeof payload === "string") return payload;
+  if (payload?.message) return payload.message;
+  if (payload?.error) return payload.error;
+  if (payload?.cause?.[0]?.description) return payload.cause[0].description;
+  return fallback;
 }
 
 export async function POST(req: Request) {
-  let body: any = null;
+  let body: any;
+
   try {
     body = await req.json();
   } catch {
@@ -38,19 +58,20 @@ export async function POST(req: Request) {
   const accessToken = process.env.MP_ACCESS_TOKEN;
   if (!accessToken) {
     return NextResponse.json(
-      { error: "Falta MP_ACCESS_TOKEN en .env.local" },
+      { error: "Falta MP_ACCESS_TOKEN en el servidor" },
       { status: 500 }
     );
   }
 
-  const rawSiteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const rawSiteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const siteUrl = normalizeBaseUrl(rawSiteUrl);
 
   if (!isHttpUrl(siteUrl)) {
     return NextResponse.json(
       {
         error:
-          "NEXT_PUBLIC_SITE_URL inválida. Debe empezar con http:// o https:// (ej: https://xxxxx.ngrok-free.dev)",
+          "NEXT_PUBLIC_SITE_URL inválida. Debe empezar con http:// o https://",
         got: rawSiteUrl,
       },
       { status: 500 }
@@ -59,27 +80,33 @@ export async function POST(req: Request) {
 
   const { orderId, orderNumber, items } = body ?? {};
 
-  // ✅ IMPORTANTE: el webhook debe poder identificar la orden por ID numérico.
   if (!orderId) {
     return NextResponse.json(
-      { error: "Falta orderId (id numérico de Strapi) para external_reference" },
+      { error: "Falta orderId (id de Strapi)" },
       { status: 400 }
     );
   }
 
-  const normalizedItems = (items ?? [])
-    .map((it: any) => ({
-      title: String(it?.title ?? "Producto"),
-      quantity: Number(it?.qty ?? it?.quantity ?? 1),
-      unit_price: Number(it?.unit_price ?? it?.price ?? 0),
-      currency_id: "ARS",
-    }))
+  // Normalizar items
+  const normalizedItems: MPItem[] = (Array.isArray(items) ? items : [])
+    .map((it: any) => {
+      const title = String(it?.title ?? "Producto").trim();
+      const quantity = Number(it?.qty ?? it?.quantity ?? 1);
+      const unit_price = Number(it?.unit_price ?? it?.price ?? 0);
+
+      return {
+        title: title || "Producto",
+        quantity,
+        unit_price,
+        currency_id: "ARS",
+      };
+    })
     .filter(
-      (it: any) =>
-        Number.isFinite(it.quantity) &&
+      (it) =>
+        it.title &&
         it.quantity > 0 &&
         Number.isFinite(it.unit_price) &&
-        it.unit_price >= 0
+        it.unit_price > 0
     );
 
   if (normalizedItems.length === 0) {
@@ -89,69 +116,56 @@ export async function POST(req: Request) {
     );
   }
 
-  // ✅ external_reference: usar SIEMPRE orderId (string)
   const external_reference = String(orderId);
 
   const back_urls = {
-    success: `${siteUrl}/checkout/success`,
-    failure: `${siteUrl}/checkout/failure`,
-    pending: `${siteUrl}/checkout/pending`,
+    success: `${siteUrl}/checkout?status=success&orderId=${external_reference}`,
+    failure: `${siteUrl}/checkout?status=failure&orderId=${external_reference}`,
+    pending: `${siteUrl}/checkout?status=pending&orderId=${external_reference}`,
   };
 
-  // En local MP suele rechazar notification_url apuntando a localhost.
-  // Con ngrok o dominio real sí lo mandamos.
-  const shouldSendNotificationUrl = !isLikelyLocalhost(siteUrl);
-
+  // 🔥 CLAVE: SIEMPRE mandar notification_url (ngrok NO es localhost)
   const notification_url = `${siteUrl}/api/mp/webhook`;
 
-  const preferenceBody: any = {
+  const preferenceBody = {
     items: normalizedItems,
     external_reference,
     back_urls,
     auto_return: "approved",
+    notification_url,
     metadata: {
-      orderId: String(orderId),
-      orderNumber: orderNumber ? String(orderNumber) : "",
+      orderId: external_reference,
+      orderNumber: orderNumber ? String(orderNumber) : undefined,
     },
   };
 
-  if (shouldSendNotificationUrl) {
-    preferenceBody.notification_url = notification_url;
-  }
+  // 🔎 Log para debug (podés borrar después)
+  console.log("MP preferenceBody:", preferenceBody);
 
-  const res = await fetch("https://api.mercadopago.com/checkout/preferences", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(preferenceBody),
-  });
+  const res = await fetch(
+    "https://api.mercadopago.com/checkout/preferences",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(preferenceBody),
+      cache: "no-store",
+    }
+  );
 
-  let data: any = null;
-  try {
-    data = await res.json();
-  } catch {
-    const text = await res.text().catch(() => "");
-    return NextResponse.json(
-      { error: "Respuesta inválida de MercadoPago", details: text },
-      { status: 502 }
-    );
-  }
+  const data = await res.json().catch(() => null);
 
   if (!res.ok) {
-    console.error("MP preference error:", JSON.stringify(data, null, 2));
+    console.error("MP preference error:", data);
     return NextResponse.json(
       {
-        error: "MercadoPago rechazó la preferencia",
+        error: pickMpErrorMessage(
+          data,
+          "MercadoPago rechazó la preferencia"
+        ),
         mp: data,
-        sent: {
-          siteUrl,
-          external_reference,
-          back_urls,
-          notification_url: shouldSendNotificationUrl ? notification_url : null,
-          items: normalizedItems,
-        },
       },
       { status: res.status || 500 }
     );
