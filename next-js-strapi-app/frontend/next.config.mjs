@@ -11,11 +11,11 @@ const nextConfig = {
       },
 
       // 🔒 Producción (dejalo comentado hasta deploy)
-      // {
-      //   protocol: "https",
-      //   hostname: "tu-dominio-strapi.com",
-      //   pathname: "/uploads/**",
-      // },
+      {
+        protocol: "https",
+        hostname: "strapi-backend-ecommerce-qete.onrender.com",
+        pathname: "/uploads/**",
+      },
 
       // 🔁 ngrok (si exponés Strapi)
       // {
