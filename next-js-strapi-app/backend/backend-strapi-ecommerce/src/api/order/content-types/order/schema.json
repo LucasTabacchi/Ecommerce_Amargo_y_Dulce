@@ -7,7 +7,7 @@
     "displayName": "Order"
   },
   "options": {
-    "draftAndPublish": true
+    "draftAndPublish": false
   },
   "pluginOptions": {},
   "attributes": {
@@ -29,12 +29,9 @@
     },
     "orderStatus": {
       "type": "enumeration",
-      "required": true,
+      "enum": ["pending", "paid"],
       "default": "pending",
-      "enum": [
-        "pending",
-        "paid"
-      ]
+      "required": true
     },
     "orderNumber": {
       "type": "string",
